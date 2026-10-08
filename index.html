@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高雄市觀光旅館名冊地圖</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #f1f5f9;
+      color: #334155;
+    }
+    #sidebar {
+      width: 400px;
+      height: 100%;
+      background: #ffffff;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.06);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    header {
+      padding: 20px;
+      background: #0f172a;
+      color: #ffffff;
+    }
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header h1 .badge {
+      font-size: 0.75rem;
+      background: #2563eb;
+      color: #ffffff;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 500;
+    }
+    header p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-top: 6px;
+    }
+    .search-box {
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .search-input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .search-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    #hotel-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      padding: 12px;
+    }
+    .hotel-card {
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .hotel-card:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.12);
+      transform: translateY(-2px);
+    }
+    .hotel-card.active {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .hotel-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0f172a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .hotel-address {
+      font-size: 0.84rem;
+      color: #475569;
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+    .hotel-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #64748b;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      padding-top: 6px;
+      border-top: 1px dashed #f1f5f9;
+    }
+    #map {
+      flex: 1;
+      height: 100%;
+    }
+    .custom-popup {
+      padding: 4px;
+    }
+    .custom-popup h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    .custom-popup p {
+      font-size: 0.85rem;
+      color: #475569;
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    .custom-popup a {
+      display: inline-block;
+      margin-top: 6px;
+      color: #2563eb;
+      font-size: 0.82rem;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .custom-popup a:hover {
+      text-decoration: underline;
+    }
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column-reverse;
+      }
+      #sidebar {
+        width: 100%;
+        height: 50vh;
+      }
+      #map {
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 左側旅館清單與搜尋欄 -->
+  <aside id="sidebar">
+    <header>
+      <h1>高雄市觀光旅館 <span class="badge" id="counter">12 間</span></h1>
+      <p>點選旅館卡片可立即定位至地圖位置</p>
+    </header>
+
+    <div class="search-box">
+      <input type="text" id="search-input" class="search-input" placeholder="搜尋旅館名稱或地址...">
+    </div>
+
+    <ul id="hotel-list"></ul>
+  </aside>
+
+  <!-- 右側地圖容器 -->
+  <main id="map"></main>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <script>
+    // 完全依據提供的 CSV 原始資料，絕不自行杜撰
+    const rawCsvData = `觀光旅館名稱,地址,經度,緯度
+華園大飯店,高雄市前金區六合二路279號,120.29098,22.6292
+高雄國賓大飯店,高雄市前金區民生二路202號,120.29068,22.62421
+漢來大飯店,高雄市前金區成功一路266號1樓、2樓、10-13樓、15-19樓、22-42樓,120.29603,22.61933
+高雄福華大飯店,高雄市新興區七賢一路311號,120.30809,22.63394
+君鴻國際酒店,高雄市苓雅區自強三路1號37至85樓,120.3002,22.61323
+寒軒國際大飯店,高雄市苓雅區四維三路33號,120.31067,22.61934
+麗尊大酒店,高雄市苓雅區五福一路105號,120.31379,22.62711
+高雄圓山大飯店,高雄市鳥松區圓山路2號,120.34655,22.65496
+義大皇家酒店,高雄市大樹區三和村學城路1段153號,120.40202,22.72967
+華王大飯店,高雄市鹽埕區五福四路42號,120.28786,22.62153
+*福容大飯店 高雄,高雄市鹽埕區五福四路45號,120.28764,22.62135
+*晶英國際行館,高雄市前鎮區中山二路199號,120.30547,22.61051`;
+
+    // 1. CSV 解析器
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return [];
+
+      const records = [];
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const cols = line.split(',');
+        if (cols.length >= 4) {
+          records.push({
+            id: i,
+            name: cols[0].trim(),
+            address: cols[1].trim(),
+            lng: parseFloat(cols[2]),
+            lat: parseFloat(cols[3])
+          });
+        }
+      }
+      return records;
+    }
+
+    // 2. 初始化地圖
+    const map = L.map('map').setView([22.6273, 120.3014], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
+    }).addTo(map);
+
+    // 3. 資料處理與渲染
+    const allHotels = parseCSV(rawCsvData);
+    const listElement = document.getElementById('hotel-list');
+    const searchInput = document.getElementById('search-input');
+    const counterBadge = document.getElementById('counter');
+
+    let hotelItems = [];
+    const markerGroup = L.featureGroup().addTo(map);
+
+    function renderListAndMarkers(hotelsToRender) {
+      listElement.innerHTML = '';
+      markerGroup.clearLayers();
+      hotelItems = [];
+
+      hotelsToRender.forEach(hotel => {
+        // 邊界合法性檢查
+        const isValidCoord = !isNaN(hotel.lat) && !isNaN(hotel.lng) &&
+                             hotel.lat >= 20.0 && hotel.lat <= 26.0 &&
+                             hotel.lng >= 119.0 && hotel.lng <= 122.5;
+
+        if (!isValidCoord) return;
+
+        // 建立 Marker
+        const marker = L.marker([hotel.lat, hotel.lng]);
+        const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hotel.address)}`;
+        
+        marker.bindPopup(`
+          <div class="custom-popup">
+            <h3>${hotel.name}</h3>
+            <p><strong>地址：</strong>${hotel.address}</p>
+            <p><strong>經緯度：</strong>${hotel.lat.toFixed(5)}, ${hotel.lng.toFixed(5)}</p>
+            <a href="${gmapsUrl}" target="_blank" rel="noopener noreferrer">在 Google 地圖中開啟 ↗</a>
+          </div>
+        `);
+        markerGroup.addLayer(marker);
+
+        // 建立卡片
+        const li = document.createElement('li');
+        li.className = 'hotel-card';
+        li.innerHTML = `
+          <div class="hotel-name">
+            <span>${hotel.name}</span>
+          </div>
+          <div class="hotel-address">${hotel.address}</div>
+          <div class="hotel-meta">
+            <span>經度: ${hotel.lng}</span>
+            <span>緯度: ${hotel.lat}</span>
+          </div>
+        `;
+
+        li.addEventListener('click', () => {
+          document.querySelectorAll('.hotel-card').forEach(el => el.classList.remove('active'));
+          li.classList.add('active');
+
+          map.flyTo([hotel.lat, hotel.lng], 16, { duration: 1.2 });
+          marker.openPopup();
+        });
+
+        marker.on('click', () => {
+          document.querySelectorAll('.hotel-card').forEach(el => el.classList.remove('active'));
+          li.classList.add('active');
+          li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+
+        listElement.appendChild(li);
+        hotelItems.push({ hotel, element: li, marker });
+      });
+
+      counterBadge.textContent = `${hotelItems.length} 間`;
+
+      if (hotelItems.length > 0) {
+        map.fitBounds(markerGroup.getBounds().pad(0.12));
+      }
+    }
+
+    // 4. 即時關鍵字搜尋功能
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.trim().toLowerCase();
+      const filtered = allHotels.filter(h => 
+        h.name.toLowerCase().includes(term) || h.address.toLowerCase().includes(term)
+      );
+      renderListAndMarkers(filtered);
+    });
+
+    // 初始載入渲染
+    renderListAndMarkers(allHotels);
+  </script>
+</body>
+</html>
